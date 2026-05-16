@@ -1,0 +1,5 @@
+# J-Quants AI Agent Settings
+harvester:
+  rate_limit:
+    calls_per_minute: 60
+    sleep_seconds: 1.1

@@ -1,0 +1,18 @@
+{
+  "daily_bars": {
+    "Date": "string",
+    "Code": "string",
+    "O": "float",
+    "H": "float",
+    "L": "float",
+    "C": "float",
+    "V": "float",
+    "TV": "float",
+    "AdjustmentFactor": "float",
+    "AdjustmentOpen": "float",
+    "AdjustmentHigh": "float",
+    "AdjustmentLow": "float",
+    "AdjustmentClose": "float",
+    "AdjustmentVolume": "float"
+  }
+}

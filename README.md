@@ -2,23 +2,6 @@
 
 J-Quants V2 APIを活用し、Gemini 1.5 Pro/Flashを搭載した自律進化型AIが投資戦略の立案から実行（分析コード生成）までを行うプロジェクトです。
 
-## 🌟 プロジェクトの設計思想
-
-本プロジェクトは、SRE（Site Reliability Engineering）の標準に基づき、開発効率と安定運用の両立を目指しています。
-
-### 1. 開発・デプロイ環境の分離 (Dev/Prod)
-- **開発環境 (Dev)**: ローカルPC（VS Code + Jupyter）でサンドボックス実験とコード実装。
-- **本番環境 (Prod)**: 常時稼働Windows上のDockerコンテナ。Google Drive (5TB) を `/app/data` にマウントし、Parquetデータレイクを構築。
-
-### 2. 認証・機密情報の管理
-- APIキー等の機密情報は `.env` ファイルで一括管理し、GitHubには `.env.example` のみを配置。
-- J-Quants V2の `x-api-key` 固定ヘッダー方式を採用。
-
-### 3. データ蓄積レイヤー (Harvester)
-- J-Quants V2 APIのレートリミット（60件/分）を厳守したスロットリング。
-- `pagination_key` を用いた自動ページネーション制御。
-- Apache Parquet形式による効率的なパーティショニング保存。
-
 ## 📁 ディレクトリ構造
 
 ```text

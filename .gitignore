@@ -20,3 +20,8 @@ data/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+
+# Docker local override (Gitで管理しないローカル専用の設定用)
+docker-compose.override.yml
+docker-compose.override.yaml
+

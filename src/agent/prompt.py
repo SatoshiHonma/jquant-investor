@@ -9,11 +9,11 @@ SYSTEM_PROMPT = """
 - Date: 日付 (datetime64)
 - Code: 銘柄コード (string)
 - O, H, L, C: 始値, 高値, 安値, 終値 (float)
-- V: 出来高 (float)
-- TV: 売買代金 (float)
+- Vo: 取引高 (float)
+- Va: 売買代金 (float)
 - AdjFactor: 調整係数
 - AdjO, AdjH, AdjL, AdjC: 調整済み四本値 (float)
-- AdjV: 調整済み出来高 (float)
+- AdjVo: 調整済み取引高 (float)
 
 ### 2. コード生成のルール
 - 入力データフレームの変数名は `df` です。

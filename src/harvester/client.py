@@ -27,19 +27,37 @@ class JQuantsClient:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         
         # レートリミット (Lightプラン想定: 60回/分)
-        # 余裕を持って1リクエストごとに 1.1 秒待機する
-        self.sleep_duration = 1.1 
+        # ページネーションを含め完全に安全に抑えるため、1リクエストごとに 1.5 秒待機する
+        self.sleep_duration = 1.5 
 
     def _request(self, endpoint: str, params: dict = None) -> dict:
-        """APIエンドポイントにリクエストを送信する"""
+        """
+        APIエンドポイントにリクエストを送信する。
+        429 (Too Many Requests) エラーを検出した場合、指数バックオフで自動でリトライします。
+        """
         url = f"{self.BASE_URL}{endpoint}"
         
-        # 流量制御: API制限を物理的に防ぐ
+        # 流量制御: API制限を安全に防ぐ
         time.sleep(self.sleep_duration)
         
-        response = requests.get(url, headers=self.headers, params=params)
-        response.raise_for_status()
-        return response.json()
+        retries = 5
+        backoff = 60  # 429発生時はまず60秒待機
+        
+        for attempt in range(retries):
+            response = requests.get(url, headers=self.headers, params=params)
+            
+            if response.status_code == 429:
+                print(f"\n[⚠️ 429 Too Many Requests] API制限に達したか、アクセスブロックを検出しました。")
+                print(f"安全のため、{backoff}秒間待機した後にリトライします (試行 {attempt + 1}/{retries})...")
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 300)  # 次回の待機時間を2倍にする（最大5分）
+                continue
+                
+            response.raise_for_status()
+            return response.json()
+            
+        raise requests.exceptions.HTTPError("429 Too Many Requests が連続したため、安全のため処理を中止しました。")
+
 
     def _fetch_all_pages(self, endpoint: str, params: dict = None) -> pd.DataFrame:
         """ページネーションキーがある限り繰り返しAPIを叩いて全データを結合したDataFrameを返す"""

@@ -105,7 +105,7 @@ class Session:
             exec_result = self.runner.run_code(
                 self.df,
                 code,
-                extra_vars={"output_df": self._output_df},
+                extra_vars={"output_df": self._output_df, "runner": self.runner},
             )
 
             if exec_result.get("success") and exec_result.get("output_df") is not None:
@@ -153,6 +153,14 @@ class Session:
         if self.df is not None:
             lines.append(f"ベースデータ (df): {len(self.df)} 行 × {len(self.df.columns)} 列")
             lines.append(f"カラム: {list(self.df.columns)}")
+        else:
+            # AIが自分でロードするモード（data_range未指定）の場合、ローカルに存在する実データの日付範囲を教えてあげる
+            min_date, max_date = self._get_available_date_range()
+            if min_date and max_date:
+                lines.append(f"ローカルデータベース（daily_bars）に存在する株価データの期間: {min_date} 〜 {max_date}")
+                lines.append("※重要: runner.load_daily_bars() を呼び出す際は、必ずこの期間内の日付を指定してください。期間外を指定すると空のデータとなりエラーになります。")
+            else:
+                lines.append("ローカルデータベースに株価データがまだありません。")
 
         if self._output_df is not None:
             lines.append(f"\n前回の output_df (step {self._step}): {len(self._output_df)} 行 × {len(self._output_df.columns)} 列")
@@ -162,6 +170,18 @@ class Session:
             lines.append("\noutput_df: まだ計算結果はありません。")
 
         return "\n".join(lines)
+
+    def _get_available_date_range(self) -> tuple[Optional[str], Optional[str]]:
+        """ローカルのdaily_barsに存在するデータの最小日付と最大日付を取得する"""
+        try:
+            parquet_files = sorted(self.data_dir.glob("daily_bars/year=*/month=*/*.parquet"))
+            if not parquet_files:
+                return None, None
+            # ファイル名から日付を抽出 (例: "2023-02-15.parquet" -> "2023-02-15")
+            dates = [f.stem for f in parquet_files]
+            return dates[0], dates[-1]
+        except Exception:
+            return None, None
 
     def _save_artifact(self, df: pd.DataFrame, step: int):
         """計算結果をParquetとしてディスクに永続化する"""

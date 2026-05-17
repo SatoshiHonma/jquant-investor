@@ -12,7 +12,7 @@ services:
       # 例: G:/jquants-data:/app/data
       - ./data:/app/data
     env_file:
-      - config/.env
+      - .env
     environment:
       - DATA_DIR=/app/data
       - TZ=Asia/Tokyo

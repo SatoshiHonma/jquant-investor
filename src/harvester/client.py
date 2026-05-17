@@ -41,21 +41,11 @@ class JQuantsClient:
         response.raise_for_status()
         return response.json()
 
-    def fetch_daily_bars(self, date: str) -> pd.DataFrame:
-        """
-        指定した日付の全銘柄の四本値データを取得し、DataFrameとして返す。
-        ページネーションキーが含まれている場合は自動でループ処理を行う。
-        
-        Args:
-            date (str): YYYYMMDD または YYYY-MM-DD 形式の日付
-        """
-        endpoint = "/equities/bars/daily"
-        # YYYYMMDD形式に整形（必要に応じて）
-        date_str = date.replace("-", "")
-        params = {"date": date_str}
-        
+    def _fetch_all_pages(self, endpoint: str, params: dict = None) -> pd.DataFrame:
+        """ページネーションキーがある限り繰り返しAPIを叩いて全データを結合したDataFrameを返す"""
+        if params is None:
+            params = {}
         all_data = []
-        
         while True:
             data = self._request(endpoint, params=params)
             
@@ -72,38 +62,108 @@ class JQuantsClient:
             # 次のページを取得するため、pagination_key をパラメータにセット
             params["pagination_key"] = pagination_key
 
-        df = pd.DataFrame(all_data)
-        return df
+        return pd.DataFrame(all_data)
+
+    def fetch_daily_bars(self, date: str) -> pd.DataFrame:
+        """
+        指定した日付の全銘柄の四本値データを取得し、DataFrameとして返す。
+        
+        Args:
+            date (str): YYYYMMDD または YYYY-MM-DD 形式の日付
+        """
+        date_str = date.replace("-", "")
+        return self._fetch_all_pages("/equities/bars/daily", {"date": date_str})
 
     def save_daily_bars_to_parquet(self, date: str):
         """
         指定した日付の四本値データを取得し、Parquet形式で保存する。
         保存先: {data_dir}/daily_bars/year=YYYY/month=MM/YYYY-MM-DD.parquet
         """
-        print(f"Fetching data for {date}...")
         df = self.fetch_daily_bars(date)
-        
         if df.empty:
-            print(f"No data found for {date}.")
             return
-            
-        # Parquet形式への保存 (パーティショニング)
-        # date は YYYYMMDD または YYYY-MM-DD を想定し、YYYY-MM-DD に統一して扱う
+        self._save_to_daily_partition(df, date, "daily_bars")
+
+    def fetch_master(self) -> pd.DataFrame:
+        """最新の銘柄マスタ（全上場銘柄）を取得する。"""
+        return self._fetch_all_pages("/equities/master")
+
+    def save_master_to_parquet(self):
+        """最新の銘柄マスタを取得し、単一のマスタファイルとして保存する。"""
+        print("Fetching equities master list...")
+        df = self.fetch_master()
+        if df.empty:
+            print("No master data found.")
+            return
+        save_path = self.data_dir / "equities_master.parquet"
+        df.to_parquet(save_path, engine="pyarrow", index=False)
+        print(f"Saved {len(df)} records to {save_path}")
+
+    def fetch_fins_summary(self, date: str) -> pd.DataFrame:
+        """指定した開示日の財務情報サマリーを取得する。"""
+        date_str = date.replace("-", "")
+        return self._fetch_all_pages("/fins/summary", {"date": date_str})
+
+    def save_fins_summary_to_parquet(self, date: str):
+        """指定した開示日の財務サマリーを取得し、Parquet形式で保存する。"""
+        df = self.fetch_fins_summary(date)
+        if df.empty:
+            return
+        self._save_to_daily_partition(df, date, "fins_summary")
+
+    def fetch_investor_types(self, date: str) -> pd.DataFrame:
+        """指定した公開日/週の投資部門別情報を取得する。"""
+        date_str = date.replace("-", "")
+        return self._fetch_all_pages("/equities/investor-types", {"date": date_str})
+
+    def save_investor_types_to_parquet(self, date: str):
+        """指定した日の投資部門別情報を取得し、Parquet形式で保存する。"""
+        df = self.fetch_investor_types(date)
+        if df.empty:
+            return
+        self._save_to_daily_partition(df, date, "investor_types")
+
+    def fetch_topix_bars(self, date: str) -> pd.DataFrame:
+        """指定した日のTOPIX指数四本値データを取得する。"""
+        date_str = date.replace("-", "")
+        return self._fetch_all_pages("/indices/bars/daily/topix", {"date": date_str})
+
+    def save_topix_bars_to_parquet(self, date: str):
+        """指定した日のTOPIX指数四本値をParquet形式で保存する。"""
+        df = self.fetch_topix_bars(date)
+        if df.empty:
+            return
+        self._save_to_daily_partition(df, date, "topix_bars")
+
+    def fetch_earnings_calendar(self) -> pd.DataFrame:
+        """決算発表予定日スケジュールを取得する。"""
+        return self._fetch_all_pages("/equities/earnings-calendar")
+
+    def save_earnings_calendar_to_parquet(self):
+        """決算発表予定日スケジュールを単一のファイルとして保存する。"""
+        print("Fetching earnings calendar...")
+        df = self.fetch_earnings_calendar()
+        if df.empty:
+            print("No calendar data found.")
+            return
+        save_path = self.data_dir / "earnings_calendar.parquet"
+        df.to_parquet(save_path, engine="pyarrow", index=False)
+        print(f"Saved {len(df)} records to {save_path}")
+
+    def _save_to_daily_partition(self, df: pd.DataFrame, date: str, folder_name: str):
+        """日付ごとのディレクトリ階層（year=YYYY/month=MM）にParquetファイルを保存する共通ヘルパー"""
         dt = pd.to_datetime(date)
         year_str = dt.strftime('%Y')
         month_str = dt.strftime('%m')
         date_str = dt.strftime('%Y-%m-%d')
         
-        save_dir = self.data_dir / "daily_bars" / f"year={year_str}" / f"month={month_str}"
+        save_dir = self.data_dir / folder_name / f"year={year_str}" / f"month={month_str}"
         save_dir.mkdir(parents=True, exist_ok=True)
         
         save_path = save_dir / f"{date_str}.parquet"
-        
-        # engine="fastparquet" または "pyarrow" が使用可能
         df.to_parquet(save_path, engine="pyarrow", index=False)
         print(f"Saved {len(df)} records to {save_path}")
 
 if __name__ == "__main__":
-    # テスト実行用 (今日の日付で取得を試みる例、実際は営業日を指定する)
     client = JQuantsClient()
-    # client.save_daily_bars_to_parquet("2023-10-02")
+
